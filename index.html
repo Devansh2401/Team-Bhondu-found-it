@@ -14,12 +14,12 @@
         button { background: #4285F4; color: white; border: none; cursor: pointer; font-weight: bold; }
         .loc-btn { background: #34A853; font-size: 13px; margin-top: -5px; }
         label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 5px; color: #444; }
-        #status { margin-bottom: 10px; font-weight: bold; color: #555; text-align: center; min-height: 20px; }
+        #status { margin-bottom: 10px; font-weight: bold; color: #555; text-align: center; min-height: 20px; font-size: 13px; }
         #manualSection { display: none; border-top: 2px dashed #eee; padding-top: 15px; margin-top: 15px; }
         .feed-item { background: white; padding: 15px; margin-top: 15px; border-radius: 10px; border-left: 5px solid #34A853; text-align: left; }
-        .feed-img { width: 100%; border-radius: 8px; margin: 10px 0; max-height: 280px; object-fit: cover; }
+        .feed-img { width: 100%; border-radius: 8px; margin: 10px 0; max-height: 250px; object-fit: cover; }
         .map-link { background: #fbbc05; color: black; padding: 8px 12px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: bold; display: inline-block; margin-top: 5px; }
-        .return-btn { background: #ea4335; color: white; padding: 8px; border-radius: 5px; border: none; font-size: 12px; cursor: pointer; margin-top: 10px; display: block; width: auto; }
+        .return-btn { background: #ea4335; color: white; padding: 8px; border-radius: 5px; border: none; font-size: 11px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -37,9 +37,9 @@
 
         <div id="manualSection">
             <label>Item Name</label>
-            <input type="text" id="manualDesc" placeholder="e.g. Pixar Lamp">
+            <input type="text" id="manualDesc" placeholder="e.g. Desk Lamp">
             <label>Where to collect?</label>
-            <input type="text" id="manualLoc" placeholder="e.g. Science Building Front Desk">
+            <input type="text" id="manualLoc" placeholder="e.g. Library Front Desk">
             <button class="loc-btn" id="geoBtn">📍 Capture My Current Location (GPS)</button>
             <input type="hidden" id="lat"><input type="hidden" id="lng">
             <label>Your Contact Details</label>
@@ -66,40 +66,40 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // AI IDENTIFICATION WITH SMART RETRY
+    // AI IDENTIFICATION WITH AUTO-RETRY
     document.getElementById('aiBtn').addEventListener('click', async () => {
         const file = document.getElementById('imageInput').files[0];
         const status = document.getElementById('status');
         if (!file) return alert("Select a photo!");
 
-        status.innerText = "⏳ Starting AI process...";
+        status.innerText = "⏳ AI warming up...";
         document.getElementById('manualSection').style.display = "block"; 
 
         const cleanBase = (await resizeImage(file, 300)).split(',')[1];
         
-        // Loop for 4 attempts with longer pauses
         for (let i = 1; i <= 4; i++) {
-            status.innerText = `⏳ AI Attempt ${i} (Warming up server...)`;
+            status.innerText = `⏳ AI Attempt ${i} (Wait for warm-up)...`;
             try {
                 const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: "What is this? 2 words max." }, { inline_data: { mime_type: "image/jpeg", data: cleanBase } }] }],
-                        safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }]
+                        safetySettings: [
+                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                        ]
                     })
                 });
 
                 const data = await resp.json();
                 if (resp.ok && data.candidates) {
                     document.getElementById('manualDesc').value = data.candidates[0].content.parts[0].text;
-                    status.innerText = "✅ AI Identified Item!";
+                    status.innerText = "✅ AI Identified!";
                     status.style.color = "green";
                     return; 
                 }
-            } catch (e) { console.log("Retrying..."); }
-            
-            // Wait 2 seconds before next attempt to prevent instant "Busy"
+            } catch (e) { console.log("Retry needed..."); }
             await new Promise(r => setTimeout(r, 2000));
         }
         status.innerText = "⚠️ AI Busy. Please type manually.";
@@ -125,7 +125,7 @@
         });
     }
 
-    // GPS LOGIC
+    // GPS CAPTURE
     document.getElementById('geoBtn').addEventListener('click', () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
@@ -142,6 +142,7 @@
         const desc = document.getElementById('manualDesc').value;
         const loc = document.getElementById('manualLoc').value;
         const lat = document.getElementById('lat').value;
+        const lng = document.getElementById('lng').value;
         const contact = document.getElementById('finderContact').value;
         const file = document.getElementById('imageInput').files[0];
 
@@ -154,7 +155,7 @@
                 description: desc || "Found Item",
                 locationName: loc || (lat ? "GPS Pin" : "Campus"),
                 lat: lat || null,
-                lng: document.getElementById('lng').value || null,
+                lng: lng || null,
                 contact: contact || "Contact Finder",
                 finder: document.getElementById('finderName').value || "Anonymous",
                 photo: photo,
@@ -166,17 +167,21 @@
         } catch (e) { alert("Error: " + e.message); }
     });
 
-    // MARK AS RETURNED LOGIC
+    // DELETE LOGIC
     window.removeItem = async function(id) {
         if (confirm("Mark this item as returned to owner?")) await db.collection("items").doc(id).delete();
     };
 
+    // FEED LOGIC
     db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap => {
         const list = document.getElementById('itemList');
         list.innerHTML = "<h3>Live Feed</h3>";
         snap.forEach(doc => {
             const item = doc.data();
-            let mapLink = (item.lat && item.lng) ? `<div><a href="http://googleusercontent.com/maps.google.com/9{item.lat},${item.lng}" target="_blank" class="map-link">📍 View Spot on Map</a></div>` : "";
+            
+            // FIXED MAP LINK: Uses standard Google Maps query format
+            let mapLink = (item.lat && item.lng) ? `<div><a href="https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}" target="_blank" class="map-link">📍 View Spot on Map</a></div>` : "";
+            
             list.innerHTML += `<div class="feed-item"><strong>${item.description}</strong><br>${item.photo ? `<img src="${item.photo}" class="feed-img">` : ''}${mapLink}<div style="font-size:12px; margin-top:8px;">Loc: ${item.locationName}<br>Contact: ${item.contact}</div><button class="return-btn" onclick="removeItem('${doc.id}')">Returned to Owner</button></div>`;
         });
     });
