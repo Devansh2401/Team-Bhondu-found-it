@@ -9,17 +9,27 @@
     <style>
         body { font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
-        button { background: #4285F4; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        #status { margin-top: 10px; font-weight: bold; color: #555; }
-        .feed-item { background: white; padding: 10px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #34A853; text-align: left; }
+        input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #4285F4; color: white; border: none; cursor: pointer; font-weight: bold; }
+        #status { margin-top: 10px; font-weight: bold; color: #555; font-size: 14px; }
+        .feed-item { background: white; padding: 15px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #34A853; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .location-tag { color: #d93025; font-size: 0.85em; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h1>📍 Found-It</h1>
+    <h1>📍 Campus Found-It</h1>
     <div class="card">
+        <strong>1. Select Photo (Optional)</strong>
         <input type="file" id="imageInput" accept="image/*">
-        <button id="mainBtn">Identify & Post</button>
+        
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        
+        <strong>2. Item Details</strong>
+        <input type="text" id="manualDesc" placeholder="Description (e.g. Blue Bottle)">
+        <input type="text" id="manualLoc" placeholder="Found at (e.g. Library 2nd Floor)">
+        
+        <button id="mainBtn">Post to Campus Feed</button>
         <p id="status">Ready</p>
     </div>
 
@@ -39,79 +49,102 @@
     };
     const GEMINI_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
 
-    // 2. INIT
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 3. THE MAIN ACTION
-    async function start() {
+    // 2. THE MAIN ACTION
+    async function postItem() {
         const fileInput = document.getElementById('imageInput');
-        const file = fileInput.files[0];
+        const descInput = document.getElementById('manualDesc');
+        const locInput = document.getElementById('manualLoc');
         const status = document.getElementById('status');
         const btn = document.getElementById('mainBtn');
-        
-        if (!file) {
-            alert("Please select a photo first!");
+
+        let description = descInput.value;
+        const location = locInput.value || "Unknown Location";
+
+        if (!description && !fileInput.files[0]) {
+            alert("Please provide a photo or a description!");
             return;
         }
 
         try {
             btn.disabled = true;
-            status.innerText = "⏳ AI is thinking...";
+            status.innerText = "Processing...";
 
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const base64 = reader.result.split(',')[1];
+            // IF PHOTO IS PROVIDED, TRY AI
+            if (fileInput.files[0]) {
+                status.innerText = "⏳ AI is identifying...";
+                const base64 = await toBase64(fileInput.files[0]);
+                const cleanBase64 = base64.split(',')[1];
                 
-                // STABLE ENDPOINT: Using v1beta and the specific model name "gemini-1.5-flash"
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-                
-                const resp = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: "Describe this object in 5 words." }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }]
-                    })
-                });
+                try {
+                    // STABLE v1 URL
+                    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+                    const resp = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: "Describe this object in 3 words." }, { inline_data: { mime_type: "image/jpeg", data: cleanBase64 } }] }]
+                        })
+                    });
 
-                const data = await resp.json();
-                
-                if (!resp.ok) {
-                    console.error("Gemini Error Detail:", data);
-                    throw new Error(data.error?.message || "AI Request Failed");
+                    const data = await resp.json();
+                    if (resp.ok) {
+                        // Use AI description if manual one is empty
+                        if (!description) description = data.candidates[0].content.parts[0].text;
+                    }
+                } catch (aiErr) {
+                    console.log("AI failed, using manual data only.");
                 }
+            }
 
-                const desc = data.candidates[0].content.parts[0].text;
+            // FINAL CHECK: If AI failed and no manual desc was typed
+            if (!description) description = "Unidentified Item";
 
-                // Firebase Save
-                await db.collection("items").add({
-                    description: desc,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+            // 3. SAVE TO FIREBASE
+            await db.collection("items").add({
+                description: description,
+                location: location,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
 
-                status.innerText = "✅ Posted successfully!";
-                fileInput.value = ""; 
-                btn.disabled = false;
-            };
+            status.innerText = "✅ Successfully Posted!";
+            descInput.value = "";
+            locInput.value = "";
+            fileInput.value = "";
         } catch (e) {
-            console.error("Application Error:", e);
             alert("Error: " + e.message);
-            status.innerText = "❌ Error!";
+            status.innerText = "❌ Error";
+        } finally {
             btn.disabled = false;
         }
     }
 
-    // 4. BIND BUTTON
-    document.getElementById('mainBtn').addEventListener('click', start);
+    // HELPER: CONVERT IMAGE
+    function toBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    }
 
-    // 5. LIVE FEED
+    // BIND BUTTON
+    document.getElementById('mainBtn').addEventListener('click', postItem);
+
+    // 4. LIVE FEED
     db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap => {
         const list = document.getElementById('itemList');
         list.innerHTML = "<h3>Live Feed</h3>";
         snap.forEach(doc => {
             const item = doc.data();
-            list.innerHTML += `<div class="feed-item"><strong>${item.description}</strong></div>`;
+            list.innerHTML += `
+                <div class="feed-item">
+                    <strong>${item.description}</strong><br>
+                    <span class="location-tag">📍 ${item.location}</span>
+                </div>`;
         });
     });
 </script>
