@@ -10,189 +10,176 @@
         body { font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; margin: 0; }
         .container { width: 100%; max-width: 450px; margin: 0 auto; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: left; }
-        input, button { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #4285F4; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
-        .loc-btn { background: #34A853; margin-top: -10px; font-size: 13px; }
+        input, button { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #4285F4; color: white; border: none; cursor: pointer; font-weight: bold; }
+        .loc-btn { background: #34A853; font-size: 13px; margin-top: -5px; }
         label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 5px; color: #444; }
-        #status { margin-bottom: 15px; font-weight: bold; font-size: 14px; text-align: center; color: #555; }
-        .feed-item { background: white; padding: 15px; margin-top: 15px; border-radius: 10px; border-left: 5px solid #34A853; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .feed-img { width: 100%; border-radius: 8px; margin: 10px 0; max-height: 300px; object-fit: cover; display: block; }
-        .map-link { background: #fbbc05; color: black; padding: 8px 12px; border-radius: 5px; text-decoration: none; font-size: 13px; font-weight: bold; display: inline-block; margin-top: 10px; }
-        .delete-btn { background: #ea4335; color: white; padding: 8px; border-radius: 5px; border: none; font-size: 12px; cursor: pointer; margin-top: 10px; width: auto; }
+        #status { margin-bottom: 10px; font-weight: bold; color: #555; text-align: center; min-height: 20px; }
+        #manualSection { display: none; border-top: 2px dashed #eee; padding-top: 15px; margin-top: 15px; }
+        .feed-item { background: white; padding: 15px; margin-top: 15px; border-radius: 10px; border-left: 5px solid #34A853; text-align: left; }
+        .feed-img { width: 100%; border-radius: 8px; margin: 10px 0; max-height: 280px; object-fit: cover; }
+        .map-link { background: #fbbc05; color: black; padding: 8px 12px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: bold; display: inline-block; margin-top: 5px; }
+        .return-btn { background: #ea4335; color: white; padding: 8px; border-radius: 5px; border: none; font-size: 12px; cursor: pointer; margin-top: 10px; display: block; width: auto; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>📍 Campus Found-It</h1>
-    
     <div class="card">
-        <label>1. Item Photo (Optional)</label>
-        <input type="file" id="imageInput" accept="image/*">
-        
-        <label>2. Item Description</label>
-        <input type="text" id="manualDesc" placeholder="e.g. Blue Water Bottle">
-        
-        <label>3. Where to collect? (Required if no contact)</label>
-        <input type="text" id="manualLoc" placeholder="e.g. Canteen Counter">
-        <button class="loc-btn" id="geoBtn">📍 Pin My Current GPS Location</button>
-        <input type="hidden" id="lat"><input type="hidden" id="lng">
-        
-        <label>4. Your Contact (Required if no location)</label>
-        <input type="text" id="finderContact" placeholder="Phone Number / Email">
-        
-        <label>5. Found By (Name)</label>
-        <input type="text" id="finderName" placeholder="Your Name">
-        
-        <div id="status">Ready</div>
-        <button id="mainBtn">Post to Campus Feed</button>
-    </div>
+        <div id="uploadStep">
+            <label>1. Upload Photo</label>
+            <input type="file" id="imageInput" accept="image/*">
+            <button id="aiBtn">Identify with AI</button>
+            <p style="text-align:center; font-size:12px; color:#888;">— OR —</p>
+            <button onclick="document.getElementById('manualSection').style.display='block'" style="background:#666; font-size:12px;">Post Without Photo</button>
+        </div>
 
-    <div id="itemList">
-        <h3 style="margin-top:30px;">Live Campus Feed</h3>
+        <div id="manualSection">
+            <label>Item Name</label>
+            <input type="text" id="manualDesc" placeholder="e.g. Pixar Lamp">
+            <label>Where to collect?</label>
+            <input type="text" id="manualLoc" placeholder="e.g. Science Building Front Desk">
+            <button class="loc-btn" id="geoBtn">📍 Capture My Current Location (GPS)</button>
+            <input type="hidden" id="lat"><input type="hidden" id="lng">
+            <label>Your Contact Details</label>
+            <input type="text" id="finderContact" placeholder="Phone or Email">
+            <label>Found By</label>
+            <input type="text" id="finderName" placeholder="Your Name">
+            <button id="mainBtn" style="background:#34A853;">Post to Feed</button>
+        </div>
+        <p id="status">Ready</p>
     </div>
+    <div id="itemList"></div>
 </div>
 
 <script>
-    // 1. FIREBASE CONFIG
     const firebaseConfig = {
         apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
         authDomain: "campusfoundit.firebaseapp.com",
         projectId: "campusfoundit",
         storageBucket: "campusfoundit.firebasestorage.app",
-        messagingSenderId: "151417592098",
         appId: "1:151417592098:web:1cb43b26bdb596236e2d7b"
     };
+    const GEMINI_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
+    
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 2. GPS PINNING
+    // AI IDENTIFICATION WITH SMART RETRY
+    document.getElementById('aiBtn').addEventListener('click', async () => {
+        const file = document.getElementById('imageInput').files[0];
+        const status = document.getElementById('status');
+        if (!file) return alert("Select a photo!");
+
+        status.innerText = "⏳ Starting AI process...";
+        document.getElementById('manualSection').style.display = "block"; 
+
+        const cleanBase = (await resizeImage(file, 300)).split(',')[1];
+        
+        // Loop for 4 attempts with longer pauses
+        for (let i = 1; i <= 4; i++) {
+            status.innerText = `⏳ AI Attempt ${i} (Warming up server...)`;
+            try {
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: "What is this? 2 words max." }, { inline_data: { mime_type: "image/jpeg", data: cleanBase } }] }],
+                        safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }]
+                    })
+                });
+
+                const data = await resp.json();
+                if (resp.ok && data.candidates) {
+                    document.getElementById('manualDesc').value = data.candidates[0].content.parts[0].text;
+                    status.innerText = "✅ AI Identified Item!";
+                    status.style.color = "green";
+                    return; 
+                }
+            } catch (e) { console.log("Retrying..."); }
+            
+            // Wait 2 seconds before next attempt to prevent instant "Busy"
+            await new Promise(r => setTimeout(r, 2000));
+        }
+        status.innerText = "⚠️ AI Busy. Please type manually.";
+    });
+
+    function resizeImage(file, maxWidth) {
+        return new Promise((r) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const scale = maxWidth / img.width;
+                    canvas.width = maxWidth;
+                    canvas.height = img.height * scale;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    r(canvas.toDataURL('image/jpeg', 0.5));
+                };
+            };
+        });
+    }
+
+    // GPS LOGIC
     document.getElementById('geoBtn').addEventListener('click', () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
                 document.getElementById('lat').value = pos.coords.latitude;
                 document.getElementById('lng').value = pos.coords.longitude;
-                const status = document.getElementById('status');
-                status.innerText = "📍 GPS Captured Successfully!";
-                status.style.color = "green";
-            }, err => {
-                alert("Could not get location. Please enable GPS.");
+                document.getElementById('status').innerText = "📍 Capture My Current Location successful!";
+                document.getElementById('status').style.color = "blue";
             });
         }
     });
 
-    // 3. MAIN POST FUNCTION
-    async function postItem() {
-        const fileInput = document.getElementById('imageInput');
-        const descInput = document.getElementById('manualDesc');
-        const locInput = document.getElementById('manualLoc');
-        const latVal = document.getElementById('lat').value;
-        const lngVal = document.getElementById('lng').value;
-        const contactInput = document.getElementById('finderContact');
-        const nameInput = document.getElementById('finderName');
-        const status = document.getElementById('status');
-        const btn = document.getElementById('mainBtn');
+    // POST LOGIC
+    document.getElementById('mainBtn').addEventListener('click', async () => {
+        const desc = document.getElementById('manualDesc').value;
+        const loc = document.getElementById('manualLoc').value;
+        const lat = document.getElementById('lat').value;
+        const contact = document.getElementById('finderContact').value;
+        const file = document.getElementById('imageInput').files[0];
 
-        // VALIDATION LOGIC
-        const hasIdentity = descInput.value.trim() || fileInput.files[0];
-        const hasLocation = locInput.value.trim() || latVal;
-        const hasContact = contactInput.value.trim();
-
-        if (!hasIdentity) {
-            alert("Please provide at least a photo or an item name!");
-            return;
-        }
-
-        if (!hasLocation && !hasContact) {
-            alert("Mandatory: You must provide either a location OR contact details so the owner can recover the item.");
-            status.innerText = "❌ Missing Location/Contact";
-            status.style.color = "red";
-            return;
-        }
+        if (!desc && !file) return alert("Info required!");
 
         try {
-            btn.disabled = true;
-            status.innerText = "⏳ Posting to feed...";
-            status.style.color = "#555";
-
-            let photoData = null;
-            if (fileInput.files[0]) {
-                photoData = await toBase64(fileInput.files[0]);
-            }
-
+            document.getElementById('status').innerText = "⏳ Posting...";
+            let photo = file ? await resizeImage(file, 800) : null;
             await db.collection("items").add({
-                description: descInput.value || "Found Item",
-                locationName: locInput.value || (latVal ? "GPS Pinned Location" : "Not Provided"),
-                lat: latVal || null,
-                lng: lngVal || null,
-                contact: contactInput.value || "Not Provided",
-                finder: nameInput.value || "Anonymous",
-                photo: photoData,
+                description: desc || "Found Item",
+                locationName: loc || (lat ? "GPS Pin" : "Campus"),
+                lat: lat || null,
+                lng: document.getElementById('lng').value || null,
+                contact: contact || "Contact Finder",
+                finder: document.getElementById('finderName').value || "Anonymous",
+                photo: photo,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
+            document.getElementById('status').innerText = "✅ Posted successfully!";
+            document.getElementById('status').style.color = "green";
+            setTimeout(() => { location.reload(); }, 2000);
+        } catch (e) { alert("Error: " + e.message); }
+    });
 
-            status.innerText = "✅ Successfully Posted!";
-            status.style.color = "green";
-
-            // RESET FORM
-            [descInput, locInput, contactInput, nameInput, fileInput].forEach(i => i.value = "");
-            document.getElementById('lat').value = ""; document.getElementById('lng').value = "";
-        } catch (e) {
-            console.error(e);
-            status.innerText = "❌ Error. Check your connection.";
-            status.style.color = "red";
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
-    // 4. DELETE FUNCTION
+    // MARK AS RETURNED LOGIC
     window.removeItem = async function(id) {
-        if (confirm("Mark this as found and remove it?")) {
-            await db.collection("items").doc(id).delete();
-        }
+        if (confirm("Mark this item as returned to owner?")) await db.collection("items").doc(id).delete();
     };
 
-    // HELPERS
-    function toBase64(file) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-        });
-    }
-
-    document.getElementById('mainBtn').addEventListener('click', postItem);
-
-    // 5. LIVE FEED LISTENER
     db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap => {
         const list = document.getElementById('itemList');
-        list.innerHTML = "<h3>Live Campus Feed</h3>";
-        if (snap.empty) list.innerHTML += "<p>No items posted yet.</p>";
-        
+        list.innerHTML = "<h3>Live Feed</h3>";
         snap.forEach(doc => {
             const item = doc.data();
-            const mapUrl = (item.lat && item.lng) 
-                ? `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`
-                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.locationName)}`;
-
-            list.innerHTML += `
-                <div class="feed-item">
-                    <strong>${item.description}</strong><br>
-                    <small>By: ${item.finder}</small>
-                    ${item.photo ? `<img src="${item.photo}" class="feed-img">` : ''}
-                    <div style="margin-top:10px;">
-                        <a href="${mapUrl}" target="_blank" class="map-link">📍 View Recovery Spot</a>
-                    </div>
-                    <div style="font-size:13px; color:#444; margin-top:10px; border-top:1px solid #eee; padding-top:8px;">
-                        <b>Location:</b> ${item.locationName}<br>
-                        <b>Contact:</b> ${item.contact}
-                    </div>
-                    <button class="delete-btn" onclick="removeItem('${doc.id}')">Returned to Owner</button>
-                </div>`;
+            let mapLink = (item.lat && item.lng) ? `<div><a href="http://googleusercontent.com/maps.google.com/9{item.lat},${item.lng}" target="_blank" class="map-link">📍 View Spot on Map</a></div>` : "";
+            list.innerHTML += `<div class="feed-item"><strong>${item.description}</strong><br>${item.photo ? `<img src="${item.photo}" class="feed-img">` : ''}${mapLink}<div style="font-size:12px; margin-top:8px;">Loc: ${item.locationName}<br>Contact: ${item.contact}</div><button class="return-btn" onclick="removeItem('${doc.id}')">Returned to Owner</button></div>`;
         });
     });
 </script>
-
 </body>
 </html>
