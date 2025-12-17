@@ -20,6 +20,14 @@
         .feed-img { width: 100%; border-radius: 8px; margin: 10px 0; max-height: 250px; object-fit: cover; }
         .map-link { background: #fbbc05; color: black; padding: 8px 12px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: bold; display: inline-block; margin-top: 5px; }
         .return-btn { background: #ea4335; color: white; padding: 8px; border-radius: 5px; border: none; font-size: 11px; cursor: pointer; margin-top: 10px; }
+
+        /* FOOTER STYLES */
+        .footer { margin-top: 40px; padding-bottom: 30px; }
+        .footer h4 { color: #555; font-size: 16px; margin-bottom: 20px; border-bottom: 2px solid #ddd; display: inline-block; padding-bottom: 5px; }
+        .team-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .dev-member { text-align: center; }
+        .dev-pfp { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #4285F4; margin-bottom: 8px; }
+        .dev-name { font-size: 12px; font-weight: bold; color: #333; line-height: 1.2; }
     </style>
 </head>
 <body>
@@ -50,7 +58,26 @@
         </div>
         <p id="status">Ready</p>
     </div>
+    
     <div id="itemList"></div>
+
+    <div class="footer">
+        <h4>Developed By</h4>
+        <div class="team-grid">
+            <div class="dev-member">
+                <img src="pfp1.png" class="dev-pfp" alt="Devansh">
+                <div class="dev-name">Devansh Katariya</div>
+            </div>
+            <div class="dev-member">
+                <img src="pfp2.png" class="dev-pfp" alt="Akshat">
+                <div class="dev-name">Akshat Dead</div>
+            </div>
+            <div class="dev-member">
+                <img src="pfp3.png" class="dev-pfp" alt="Viraj">
+                <div class="dev-name">Viraj Roliwal</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -66,7 +93,6 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // AI IDENTIFICATION WITH AUTO-RETRY
     document.getElementById('aiBtn').addEventListener('click', async () => {
         const file = document.getElementById('imageInput').files[0];
         const status = document.getElementById('status');
@@ -80,7 +106,7 @@
         for (let i = 1; i <= 4; i++) {
             status.innerText = `⏳ AI Attempt ${i} (Wait for warm-up)...`;
             try {
-                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -125,7 +151,6 @@
         });
     }
 
-    // GPS CAPTURE
     document.getElementById('geoBtn').addEventListener('click', () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
@@ -137,7 +162,6 @@
         }
     });
 
-    // POST LOGIC
     document.getElementById('mainBtn').addEventListener('click', async () => {
         const desc = document.getElementById('manualDesc').value;
         const loc = document.getElementById('manualLoc').value;
@@ -167,20 +191,16 @@
         } catch (e) { alert("Error: " + e.message); }
     });
 
-    // DELETE LOGIC
     window.removeItem = async function(id) {
         if (confirm("Mark this item as returned to owner?")) await db.collection("items").doc(id).delete();
     };
 
-    // FEED LOGIC
     db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap => {
         const list = document.getElementById('itemList');
         list.innerHTML = "<h3>Live Feed</h3>";
         snap.forEach(doc => {
             const item = doc.data();
-            
-            // FIXED MAP LINK: Uses standard Google Maps query format
-            let mapLink = (item.lat && item.lng) ? `<div><a href="https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}" target="_blank" class="map-link">📍 View Spot on Map</a></div>` : "";
+            let mapLink = (item.lat && item.lng) ? `<div><a href="https://www.google.com/maps?q=${item.lat},${item.lng}" target="_blank" class="map-link">📍 View Spot on Map</a></div>` : "";
             
             list.innerHTML += `<div class="feed-item"><strong>${item.description}</strong><br>${item.photo ? `<img src="${item.photo}" class="feed-img">` : ''}${mapLink}<div style="font-size:12px; margin-top:8px;">Loc: ${item.locationName}<br>Contact: ${item.contact}</div><button class="return-btn" onclick="removeItem('${doc.id}')">Returned to Owner</button></div>`;
         });
