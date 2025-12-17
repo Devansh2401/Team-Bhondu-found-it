@@ -37,20 +37,20 @@
 
     <div id="itemList">
         <h3>Live Campus Feed</h3>
-        </div>
+    </div>
 </div>
 
 <script>
     // --- 1. CONFIGURATION ---
-     const firebaseConfig = {
-    apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
-    authDomain: "campusfoundit.firebaseapp.com",
-    projectId: "campusfoundit",
-    storageBucket: "campusfoundit.firebasestorage.app",
-    messagingSenderId: "151417592098",
-    appId: "1:151417592098:web:1cb43b26bdb596236e2d7b",
-    measurementId: "G-4709T85Z0G"
-  };
+    const firebaseConfig = {
+        apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
+        authDomain: "campusfoundit.firebaseapp.com",
+        projectId: "campusfoundit",
+        storageBucket: "campusfoundit.firebasestorage.app",
+        messagingSenderId: "151417592098",
+        appId: "1:151417592098:web:1cb43b26bdb596236e2d7b",
+        measurementId: "G-4709T85Z0G"
+    };
 
     const GEMINI_API_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
 
@@ -146,9 +146,21 @@
     // --- 6. REAL-TIME FEED LISTENER ---
     db.collection("items").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
         const list = document.getElementById('itemList');
-        // Keep the header, clear the rest
         list.innerHTML = "<h3>Live Campus Feed</h3>";
         
         snapshot.forEach((doc) => {
             const data = doc.data();
-            const time = data.createdAt ? data.createdAt.toDate().toLocaleString() : "
+            const time = data.createdAt ? data.createdAt.toDate().toLocaleString() : "Just now";
+            
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'feed-item';
+            itemDiv.innerHTML = `
+                <strong>${data.description}</strong>
+                <div class="item-time">Found: ${time}</div>
+            `;
+            list.appendChild(itemDiv);
+        });
+    });
+</script>
+</body>
+</html>
