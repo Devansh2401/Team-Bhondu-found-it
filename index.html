@@ -80,11 +80,11 @@
         for (let i = 1; i <= 4; i++) {
             status.innerText = `⏳ AI Attempt ${i} (Wait for warm-up)...`;
             try {
-                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: "What is this? 2 words max." }, { inline_data: { mime_type: "image/jpeg", data: cleanBase } }] }],
+                        contents: [{ parts: [{ text: "What is this? Just the name." }, { inline_data: { mime_type: "image/jpeg", data: cleanBase } }] }],
                         safetySettings: [
                             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
                             { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
