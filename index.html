@@ -52,49 +52,37 @@
 
     const GEMINI_API_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
 
-    async function uploadItem() {
-        const file = document.getElementById('imageInput').files[0];
-        if (!file) return alert("Select an image first!");
-        
-        const status = document.getElementById('status');
-        status.innerText = "🤖 Gemini AI is identifying the item...";
+   // Replace your existing getGeminiTags function with this:
+async function getGeminiTags(base64Data) {
+    const API_KEY = "YOUR_GEMINI_API_KEY";
+    // Using the 1.5-flash model as it is the most stable for free tier
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{
+                parts: [
+                    { text: "Describe this object found on a college campus in 5 words." },
+                    { inline_data: { 
+                        mime_type: "image/jpeg", // Standard for most mobile photos
+                        data: base64Data 
+                    }}
+                ]
+            }]
+        })
+    });
 
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const base64Image = reader.result.split(',')[1];
-            
-            try {
-                // Call Gemini Vision
-                const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [
-                                { text: "Describe this lost item in 5 words or less (e.g., 'Blue Nike Water Bottle')." },
-                                { inline_data: { mime_type: "image/jpeg", data: base64Image } }
-                            ]
-                        }]
-                    })
-                });
-                
-                const data = await aiResponse.json();
-                const aiTags = data.candidates[0].content.parts[0].text;
-
-                // Save to Firestore
-                await db.collection("items").add({
-                    description: aiTags,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                status.innerText = "✅ Posted Successfully!";
-            } catch (error) {
-                console.error(error);
-                status.innerText = "❌ Error analyzing image.";
-            }
-        };
+    if (!response.ok) {
+        const errorDetails = await response.json();
+        console.error("Gemini Error:", errorDetails);
+        throw new Error("Gemini API failed");
     }
 
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+}
     // Listen for Real-time Updates
     db.collection("items").orderBy("createdAt", "desc").onSnapshot(snapshot => {
         const list = document.getElementById('itemList');
