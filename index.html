@@ -4,40 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campus Found-It</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; max-width: 500px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .upload-section { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input[type="file"] { margin: 10px 0; width: 100%; }
-        button { background: #4285F4; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
-        .item-card { background: white; padding: 15px; border-radius: 12px; margin-top: 15px; border-left: 5px solid #4285F4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .tags { color: #555; font-size: 0.9em; font-style: italic; }
-        #status { text-align: center; color: #666; margin: 10px 0; font-size: 0.9em; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 450px; }
+        .header { text-align: center; color: #4285F4; margin-bottom: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input[type="file"] { margin: 15px 0; display: block; width: 100%; }
+        button { background: #4285F4; color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-size: 16px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        #status { color: #666; font-size: 14px; text-align: center; margin-top: 10px; min-height: 20px; }
+        .feed-item { background: white; padding: 15px; border-radius: 10px; margin-top: 10px; border-left: 5px solid #34A853; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .item-time { font-size: 11px; color: #999; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <h1>📍 Found-It</h1>
-    <p>Smart Campus Lost & Found</p>
-</div>
-
-<div class="upload-section">
-    <strong>Found something?</strong>
-    <input type="file" id="imageInput" accept="image/*">
-    <button onclick="uploadItem()">Post with AI Tagging</button>
-    <div id="status"></div>
-</div>
-
-<div id="itemList">
-    <h3>Live Campus Feed</h3>
+<div class="container">
+    <div class="header">
+        <h1>📍 Found-It</h1>
+        <p>AI-Powered Campus Lost & Found</p>
     </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <div class="card">
+        <strong>Found an item?</strong>
+        <input type="file" id="imageInput" accept="image/*">
+        <button id="uploadBtn" onclick="uploadItem()">Identify & Post</button>
+        <div id="status">Ready</div>
+    </div>
+
+    <div id="itemList">
+        <h3>Live Campus Feed</h3>
+        </div>
+</div>
 
 <script>
-    const firebaseConfig = {
+    // --- 1. CONFIGURATION ---
+     const firebaseConfig = {
     apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
     authDomain: "campusfoundit.firebaseapp.com",
     projectId: "campusfoundit",
@@ -47,72 +52,103 @@
     measurementId: "G-4709T85Z0G"
   };
 
+    const GEMINI_API_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
+
+    // --- 2. INITIALIZE FIREBASE ---
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    const GEMINI_API_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
+    // --- 3. MAIN FUNCTION ---
+    async function uploadItem() {
+        const fileInput = document.getElementById('imageInput');
+        const status = document.getElementById('status');
+        const btn = document.getElementById('uploadBtn');
 
-   // Replace your existing getGeminiTags function with this:
-async function getGeminiTags(base64Data) {
-    const API_KEY = "YOUR_GEMINI_API_KEY"; // Double check this!
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-    
-    const requestBody = {
-        contents: [{
-            parts: [
-                { text: "Describe this object in 5 words for a lost and found log." },
-                { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-            ]
-        }],
-        // This part stops the AI from blocking the response
-        safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-    };
+        if (!fileInput.files[0]) {
+            alert("Please select a photo first!");
+            return;
+        }
 
-    try {
+        try {
+            btn.disabled = true;
+            status.innerText = "⏳ AI is looking at the photo...";
+
+            // Convert image to Base64
+            const base64Data = await toBase64(fileInput.files[0]);
+            const cleanBase64 = base64Data.split(',')[1];
+
+            // Get Tags from Gemini
+            const description = await getGeminiTags(cleanBase64);
+
+            // Save to Firebase
+            status.innerText = "✍️ Saving to campus feed...";
+            await db.collection("items").add({
+                description: description,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            status.innerText = "✅ Item posted successfully!";
+            fileInput.value = ""; // Clear input
+        } catch (error) {
+            console.error("Full Error Info:", error);
+            status.innerText = "❌ Error: " + error.message;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // --- 4. GEMINI AI API CALL ---
+    async function getGeminiTags(base64Image) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: "Describe this lost object in 5 words or less (e.g., 'Black HP Laptop' or 'Red Water Bottle')." },
+                        { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+                    ]
+                }],
+                safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                ]
+            })
         });
 
         const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error?.message || "Gemini API failed");
+        }
 
-        if (data.error) {
-            console.error("Gemini Error:", data.error.message);
-            alert("AI Error: " + data.error.message); // This will tell you the REAL error
-            return "Error identifying item";
+        if (!data.candidates || !data.candidates[0].content) {
+            throw new Error("AI could not identify this image. Try a clearer photo.");
         }
 
         return data.candidates[0].content.parts[0].text;
-    } catch (e) {
-        console.error("Fetch Error:", e);
-        return "Connection Error";
     }
-}
 
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
-}
-    // Listen for Real-time Updates
-    db.collection("items").orderBy("createdAt", "desc").onSnapshot(snapshot => {
-        const list = document.getElementById('itemList');
-        list.innerHTML = "<h3>Live Campus Feed</h3>";
-        snapshot.forEach(doc => {
-            const item = doc.data();
-            list.innerHTML += `
-                <div class="item-card">
-                    <div class="tags">AI identified this as:</div>
-                    <strong>${item.description}</strong>
-                    <div style="font-size:0.7em; color:#999;">${item.createdAt?.toDate().toLocaleString() || 'Just now'}</div>
-                </div>
-            `;
+    // --- 5. HELPER: CONVERT IMAGE TO BASE64 ---
+    function toBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
         });
-    });
-</script>
-</body>
-</html>
+    }
+
+    // --- 6. REAL-TIME FEED LISTENER ---
+    db.collection("items").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+        const list = document.getElementById('itemList');
+        // Keep the header, clear the rest
+        list.innerHTML = "<h3>Live Campus Feed</h3>";
+        
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            const time = data.createdAt ? data.createdAt.toDate().toLocaleString() : "
