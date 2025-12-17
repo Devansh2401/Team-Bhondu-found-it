@@ -61,7 +61,7 @@
         storageBucket: "campusfoundit.firebasestorage.app",
         appId: "1:151417592098:web:1cb43b26bdb596236e2d7b"
     };
-    const GEMINI_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
+    const GEMINI_KEY = "AIzaSyASlSRB3DXUqtxii2v8qLCkGP8OolCXLnw";
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
@@ -80,7 +80,7 @@
         for (let i = 1; i <= 4; i++) {
             status.innerText = `⏳ AI Attempt ${i} (Wait for warm-up)...`;
             try {
-                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
