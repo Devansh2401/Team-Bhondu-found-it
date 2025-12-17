@@ -12,8 +12,10 @@
         input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #4285F4; color: white; border: none; cursor: pointer; font-weight: bold; }
         #status { margin-top: 10px; font-weight: bold; color: #555; font-size: 14px; }
-        .feed-item { background: white; padding: 15px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #34A853; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .feed-item { background: white; padding: 15px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #34A853; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; }
         .location-tag { color: #d93025; font-size: 0.85em; font-weight: bold; }
+        .contact-info { font-size: 0.85em; color: #666; margin-top: 5px; font-style: italic; }
+        .delete-btn { background: #ea4335; color: white; padding: 5px 10px; border-radius: 5px; border: none; font-size: 11px; cursor: pointer; margin-top: 10px; width: auto; }
     </style>
 </head>
 <body>
@@ -26,8 +28,12 @@
         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
         
         <strong>2. Item Details</strong>
-        <input type="text" id="manualDesc" placeholder="Description (e.g. Blue Bottle)">
-        <input type="text" id="manualLoc" placeholder="Found at (e.g. Library 2nd Floor)">
+        <input type="text" id="manualDesc" placeholder="Item (e.g. Blue Bottle)">
+        <input type="text" id="manualLoc" placeholder="Found at (e.g. Library)">
+        
+        <strong>3. Your Info (Optional)</strong>
+        <input type="text" id="finderName" placeholder="Your Name">
+        <input type="text" id="finderContact" placeholder="Phone or Instagram">
         
         <button id="mainBtn">Post to Campus Feed</button>
         <p id="status">Ready</p>
@@ -38,7 +44,7 @@
     </div>
 
 <script>
-    // 1. CONFIG
+    // 1. FIREBASE CONFIG
     const firebaseConfig = {
         apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
         authDomain: "campusfoundit.firebaseapp.com",
@@ -52,16 +58,20 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 2. THE MAIN ACTION
+    // 2. POST FUNCTION
     async function postItem() {
         const fileInput = document.getElementById('imageInput');
         const descInput = document.getElementById('manualDesc');
         const locInput = document.getElementById('manualLoc');
+        const nameInput = document.getElementById('finderName');
+        const contactInput = document.getElementById('finderContact');
         const status = document.getElementById('status');
         const btn = document.getElementById('mainBtn');
 
         let description = descInput.value;
         const location = locInput.value || "Unknown Location";
+        const finder = nameInput.value || "Anonymous";
+        const contact = contactInput.value || "Contact at Found Location";
 
         if (!description && !fileInput.files[0]) {
             alert("Please provide a photo or a description!");
@@ -72,14 +82,12 @@
             btn.disabled = true;
             status.innerText = "Processing...";
 
-            // IF PHOTO IS PROVIDED, TRY AI
             if (fileInput.files[0]) {
                 status.innerText = "⏳ AI is identifying...";
                 const base64 = await toBase64(fileInput.files[0]);
                 const cleanBase64 = base64.split(',')[1];
                 
                 try {
-                    // STABLE v1 URL
                     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
                     const resp = await fetch(url, {
                         method: 'POST',
@@ -88,40 +96,42 @@
                             contents: [{ parts: [{ text: "Describe this object in 3 words." }, { inline_data: { mime_type: "image/jpeg", data: cleanBase64 } }] }]
                         })
                     });
-
                     const data = await resp.json();
-                    if (resp.ok) {
-                        // Use AI description if manual one is empty
-                        if (!description) description = data.candidates[0].content.parts[0].text;
+                    if (resp.ok && !description) {
+                        description = data.candidates[0].content.parts[0].text;
                     }
-                } catch (aiErr) {
-                    console.log("AI failed, using manual data only.");
-                }
+                } catch (aiErr) { console.log("AI Offline, using manual data."); }
             }
 
-            // FINAL CHECK: If AI failed and no manual desc was typed
             if (!description) description = "Unidentified Item";
 
-            // 3. SAVE TO FIREBASE
             await db.collection("items").add({
                 description: description,
                 location: location,
+                finderName: finder,
+                contactInfo: contact,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             status.innerText = "✅ Successfully Posted!";
-            descInput.value = "";
-            locInput.value = "";
-            fileInput.value = "";
+            // Reset fields
+            [descInput, locInput, nameInput, contactInput, fileInput].forEach(i => i.value = "");
         } catch (e) {
             alert("Error: " + e.message);
             status.innerText = "❌ Error";
-        } finally {
-            btn.disabled = false;
+        } finally { btn.disabled = false; }
+    }
+
+    // 3. REMOVE FUNCTION
+    window.removeItem = async function(id) {
+        if (confirm("Mark this item as returned and remove it?")) {
+            try {
+                await db.collection("items").doc(id).delete();
+            } catch (e) { alert("Error deleting: " + e.message); }
         }
     }
 
-    // HELPER: CONVERT IMAGE
+    // HELPER
     function toBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -144,6 +154,8 @@
                 <div class="feed-item">
                     <strong>${item.description}</strong><br>
                     <span class="location-tag">📍 ${item.location}</span>
+                    <div class="contact-info">Found by: ${item.finderName} | Contact: ${item.contactInfo}</div>
+                    <button class="delete-btn" onclick="removeItem('${doc.id}')">Returned to Owner</button>
                 </div>`;
         });
     });
