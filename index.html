@@ -31,7 +31,7 @@
     <div class="card">
         <strong>Found an item?</strong>
         <input type="file" id="imageInput" accept="image/*">
-        <button id="uploadBtn" onclick="uploadItem()">Identify & Post</button>
+        <button id="uploadBtn">Identify & Post</button>
         <div id="status">Ready</div>
     </div>
 
@@ -58,8 +58,8 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // --- 3. MAIN FUNCTION ---
-    async function uploadItem() {
+    // --- 3. THE UPLOAD LOGIC ---
+    async function handleUpload() {
         const fileInput = document.getElementById('imageInput');
         const status = document.getElementById('status');
         const btn = document.getElementById('uploadBtn');
@@ -73,14 +73,11 @@
             btn.disabled = true;
             status.innerText = "⏳ AI is looking at the photo...";
 
-            // Convert image to Base64
             const base64Data = await toBase64(fileInput.files[0]);
             const cleanBase64 = base64Data.split(',')[1];
 
-            // Get Tags from Gemini
             const description = await getGeminiTags(cleanBase64);
 
-            // Save to Firebase
             status.innerText = "✍️ Saving to campus feed...";
             await db.collection("items").add({
                 description: description,
@@ -88,79 +85,26 @@
             });
 
             status.innerText = "✅ Item posted successfully!";
-            fileInput.value = ""; // Clear input
+            fileInput.value = ""; 
         } catch (error) {
-            console.error("Full Error Info:", error);
+            console.error("Error details:", error);
             status.innerText = "❌ Error: " + error.message;
         } finally {
             btn.disabled = false;
         }
     }
 
-    // --- 4. GEMINI AI API CALL ---
+    // --- 4. CONNECT BUTTON TO LOGIC ---
+    document.getElementById('uploadBtn').addEventListener('click', handleUpload);
+
+    // --- 5. GEMINI AI API CALL ---
     async function getGeminiTags(base64Image) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-        
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{
                     parts: [
-                        { text: "Describe this lost object in 5 words or less (e.g., 'Black HP Laptop' or 'Red Water Bottle')." },
-                        { inline_data: { mime_type: "image/jpeg", data: base64Image } }
-                    ]
-                }],
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                ]
-            })
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(data.error?.message || "Gemini API failed");
-        }
-
-        if (!data.candidates || !data.candidates[0].content) {
-            throw new Error("AI could not identify this image. Try a clearer photo.");
-        }
-
-        return data.candidates[0].content.parts[0].text;
-    }
-
-    // --- 5. HELPER: CONVERT IMAGE TO BASE64 ---
-    function toBase64(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-    }
-
-    // --- 6. REAL-TIME FEED LISTENER ---
-    db.collection("items").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
-        const list = document.getElementById('itemList');
-        list.innerHTML = "<h3>Live Campus Feed</h3>";
-        
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            const time = data.createdAt ? data.createdAt.toDate().toLocaleString() : "Just now";
-            
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'feed-item';
-            itemDiv.innerHTML = `
-                <strong>${data.description}</strong>
-                <div class="item-time">Found: ${time}</div>
-            `;
-            list.appendChild(itemDiv);
-        });
-    });
-</script>
-</body>
-</html>
+                        { text: "Describe this lost object in 5 words or less (e.g., 'Black HP Laptop')." },
+                        { inline_data: { mime_type: "image/jpeg", data: base64
