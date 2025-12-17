@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Found-It</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; max-width: 500px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .upload-section { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input[type="file"] { margin: 10px 0; width: 100%; }
+        button { background: #4285F4; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+        .item-card { background: white; padding: 15px; border-radius: 12px; margin-top: 15px; border-left: 5px solid #4285F4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .tags { color: #555; font-size: 0.9em; font-style: italic; }
+        #status { text-align: center; color: #666; margin: 10px 0; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>📍 Found-It</h1>
+    <p>Smart Campus Lost & Found</p>
+</div>
+
+<div class="upload-section">
+    <strong>Found something?</strong>
+    <input type="file" id="imageInput" accept="image/*">
+    <button onclick="uploadItem()">Post with AI Tagging</button>
+    <div id="status"></div>
+</div>
+
+<div id="itemList">
+    <h3>Live Campus Feed</h3>
+    </div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+    const firebaseConfig = {
+    apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
+    authDomain: "campusfoundit.firebaseapp.com",
+    projectId: "campusfoundit",
+    storageBucket: "campusfoundit.firebasestorage.app",
+    messagingSenderId: "151417592098",
+    appId: "1:151417592098:web:1cb43b26bdb596236e2d7b",
+    measurementId: "G-4709T85Z0G"
+  };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const GEMINI_API_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
+
+    async function uploadItem() {
+        const file = document.getElementById('imageInput').files[0];
+        if (!file) return alert("Select an image first!");
+        
+        const status = document.getElementById('status');
+        status.innerText = "🤖 Gemini AI is identifying the item...";
+
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64Image = reader.result.split(',')[1];
+            
+            try {
+                // Call Gemini Vision
+                const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: "Describe this lost item in 5 words or less (e.g., 'Blue Nike Water Bottle')." },
+                                { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+                            ]
+                        }]
+                    })
+                });
+                
+                const data = await aiResponse.json();
+                const aiTags = data.candidates[0].content.parts[0].text;
+
+                // Save to Firestore
+                await db.collection("items").add({
+                    description: aiTags,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                status.innerText = "✅ Posted Successfully!";
+            } catch (error) {
+                console.error(error);
+                status.innerText = "❌ Error analyzing image.";
+            }
+        };
+    }
+
+    // Listen for Real-time Updates
+    db.collection("items").orderBy("createdAt", "desc").onSnapshot(snapshot => {
+        const list = document.getElementById('itemList');
+        list.innerHTML = "<h3>Live Campus Feed</h3>";
+        snapshot.forEach(doc => {
+            const item = doc.data();
+            list.innerHTML += `
+                <div class="item-card">
+                    <div class="tags">AI identified this as:</div>
+                    <strong>${item.description}</strong>
+                    <div style="font-size:0.7em; color:#999;">${item.createdAt?.toDate().toLocaleString() || 'Just now'}</div>
+                </div>
+            `;
+        });
+    });
+</script>
+</body>
+</html>
