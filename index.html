@@ -27,7 +27,7 @@
     </div>
 
 <script>
-    // 1. CONFIG
+    // 1. CONFIG (Verify these are exactly as in your console)
     const firebaseConfig = {
         apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
         authDomain: "campusfoundit.firebaseapp.com",
@@ -44,30 +44,34 @@
 
     // 3. THE ACTION
     async function start() {
-        alert("Button Clicked! Starting..."); // This confirms the button is connected
         const file = document.getElementById('imageInput').files[0];
         const status = document.getElementById('status');
         
         if (!file) return alert("Select a photo!");
 
         try {
-            status.innerText = "Processing...";
+            status.innerText = "⏳ AI is thinking...";
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = async () => {
                 const base64 = reader.result.split(',')[1];
                 
-                // Gemini Call
-                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+                // FIXED GEMINI URL (using gemini-1.5-flash-latest)
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`;
+                
                 const resp = await fetch(url, {
                     method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: "Describe this in 5 words." }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }]
+                        contents: [{ parts: [{ text: "Describe this object in 5 words." }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }]
                     })
                 });
 
                 const data = await resp.json();
-                if (!resp.ok) throw new Error(data.error.message);
+                if (!resp.ok) {
+                    console.error("Gemini Details:", data);
+                    throw new Error(data.error?.message || "AI Request Failed");
+                }
 
                 const desc = data.candidates[0].content.parts[0].text;
 
@@ -77,16 +81,27 @@
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                status.innerText = "✅ Done!";
+                status.innerText = "✅ Posted to feed!";
             };
         } catch (e) {
+            console.error("App Error:", e);
             alert("Error: " + e.message);
             status.innerText = "Error!";
         }
     }
 
-    // 4. BIND BUTTON
+    // 4. BIND BUTTON (This ensures the button works every time)
     document.getElementById('mainBtn').addEventListener('click', start);
 
-    // 5. FEED
-    db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap =>
+    // 5. LIVE FEED
+    db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap => {
+        const list = document.getElementById('itemList');
+        list.innerHTML = "<h3>Live Feed</h3>";
+        snap.forEach(doc => {
+            const item = doc.data();
+            list.innerHTML += `<div class="feed-item"><strong>${item.description}</strong></div>`;
+        });
+    });
+</script>
+</body>
+</html>
