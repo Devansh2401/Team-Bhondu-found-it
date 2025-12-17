@@ -7,41 +7,51 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
-        input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #4285F4; color: white; border: none; cursor: pointer; font-weight: bold; }
-        #status { margin-top: 10px; font-weight: bold; color: #555; font-size: 14px; }
-        .feed-item { background: white; padding: 15px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #34A853; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; }
-        .location-tag { color: #d93025; font-size: 0.85em; font-weight: bold; }
-        .contact-info { font-size: 0.85em; color: #666; margin-top: 5px; font-style: italic; }
-        .delete-btn { background: #ea4335; color: white; padding: 5px 10px; border-radius: 5px; border: none; font-size: 11px; cursor: pointer; margin-top: 10px; width: auto; }
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; margin: 0; }
+        .container { width: 100%; max-width: 450px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: left; }
+        input, button { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #4285F4; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
+        .loc-btn { background: #34A853; margin-top: -10px; font-size: 13px; }
+        label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 5px; color: #444; }
+        #status { margin-bottom: 15px; font-weight: bold; font-size: 14px; text-align: center; color: #555; }
+        .feed-item { background: white; padding: 15px; margin-top: 15px; border-radius: 10px; border-left: 5px solid #34A853; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .feed-img { width: 100%; border-radius: 8px; margin: 10px 0; max-height: 300px; object-fit: cover; display: block; }
+        .map-link { background: #fbbc05; color: black; padding: 8px 12px; border-radius: 5px; text-decoration: none; font-size: 13px; font-weight: bold; display: inline-block; margin-top: 10px; }
+        .delete-btn { background: #ea4335; color: white; padding: 8px; border-radius: 5px; border: none; font-size: 12px; cursor: pointer; margin-top: 10px; width: auto; }
     </style>
 </head>
 <body>
 
+<div class="container">
     <h1>📍 Campus Found-It</h1>
+    
     <div class="card">
-        <strong>1. Select Photo (Optional)</strong>
+        <label>1. Item Photo (Optional)</label>
         <input type="file" id="imageInput" accept="image/*">
         
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        <label>2. Item Description</label>
+        <input type="text" id="manualDesc" placeholder="e.g. Blue Water Bottle">
         
-        <strong>2. Item Details</strong>
-        <input type="text" id="manualDesc" placeholder="Item (e.g. Blue Bottle)">
-        <input type="text" id="manualLoc" placeholder="Found at (e.g. Library)">
+        <label>3. Where to collect? (Required if no contact)</label>
+        <input type="text" id="manualLoc" placeholder="e.g. Canteen Counter">
+        <button class="loc-btn" id="geoBtn">📍 Pin My Current GPS Location</button>
+        <input type="hidden" id="lat"><input type="hidden" id="lng">
         
-        <strong>3. Your Info (Optional)</strong>
+        <label>4. Your Contact (Required if no location)</label>
+        <input type="text" id="finderContact" placeholder="Phone Number / Email">
+        
+        <label>5. Found By (Name)</label>
         <input type="text" id="finderName" placeholder="Your Name">
-        <input type="text" id="finderContact" placeholder="Phone or Instagram">
         
+        <div id="status">Ready</div>
         <button id="mainBtn">Post to Campus Feed</button>
-        <p id="status">Ready</p>
     </div>
 
-    <div id="itemList" style="max-width:400px; margin: 20px auto;">
-        <h3>Live Feed</h3>
+    <div id="itemList">
+        <h3 style="margin-top:30px;">Live Campus Feed</h3>
     </div>
+</div>
 
 <script>
     // 1. FIREBASE CONFIG
@@ -53,112 +63,136 @@
         messagingSenderId: "151417592098",
         appId: "1:151417592098:web:1cb43b26bdb596236e2d7b"
     };
-    const GEMINI_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 2. POST FUNCTION
+    // 2. GPS PINNING
+    document.getElementById('geoBtn').addEventListener('click', () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                document.getElementById('lat').value = pos.coords.latitude;
+                document.getElementById('lng').value = pos.coords.longitude;
+                const status = document.getElementById('status');
+                status.innerText = "📍 GPS Captured Successfully!";
+                status.style.color = "green";
+            }, err => {
+                alert("Could not get location. Please enable GPS.");
+            });
+        }
+    });
+
+    // 3. MAIN POST FUNCTION
     async function postItem() {
         const fileInput = document.getElementById('imageInput');
         const descInput = document.getElementById('manualDesc');
         const locInput = document.getElementById('manualLoc');
-        const nameInput = document.getElementById('finderName');
+        const latVal = document.getElementById('lat').value;
+        const lngVal = document.getElementById('lng').value;
         const contactInput = document.getElementById('finderContact');
+        const nameInput = document.getElementById('finderName');
         const status = document.getElementById('status');
         const btn = document.getElementById('mainBtn');
 
-        let description = descInput.value;
-        const location = locInput.value || "Unknown Location";
-        const finder = nameInput.value || "Anonymous";
-        const contact = contactInput.value || "Contact at Found Location";
+        // VALIDATION LOGIC
+        const hasIdentity = descInput.value.trim() || fileInput.files[0];
+        const hasLocation = locInput.value.trim() || latVal;
+        const hasContact = contactInput.value.trim();
 
-        if (!description && !fileInput.files[0]) {
-            alert("Please provide a photo or a description!");
+        if (!hasIdentity) {
+            alert("Please provide at least a photo or an item name!");
+            return;
+        }
+
+        if (!hasLocation && !hasContact) {
+            alert("Mandatory: You must provide either a location OR contact details so the owner can recover the item.");
+            status.innerText = "❌ Missing Location/Contact";
+            status.style.color = "red";
             return;
         }
 
         try {
             btn.disabled = true;
-            status.innerText = "Processing...";
+            status.innerText = "⏳ Posting to feed...";
+            status.style.color = "#555";
 
+            let photoData = null;
             if (fileInput.files[0]) {
-                status.innerText = "⏳ AI is identifying...";
-                const base64 = await toBase64(fileInput.files[0]);
-                const cleanBase64 = base64.split(',')[1];
-                
-                try {
-                    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-                    const resp = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: "Describe this object in 3 words." }, { inline_data: { mime_type: "image/jpeg", data: cleanBase64 } }] }]
-                        })
-                    });
-                    const data = await resp.json();
-                    if (resp.ok && !description) {
-                        description = data.candidates[0].content.parts[0].text;
-                    }
-                } catch (aiErr) { console.log("AI Offline, using manual data."); }
+                photoData = await toBase64(fileInput.files[0]);
             }
 
-            if (!description) description = "Unidentified Item";
-
             await db.collection("items").add({
-                description: description,
-                location: location,
-                finderName: finder,
-                contactInfo: contact,
+                description: descInput.value || "Found Item",
+                locationName: locInput.value || (latVal ? "GPS Pinned Location" : "Not Provided"),
+                lat: latVal || null,
+                lng: lngVal || null,
+                contact: contactInput.value || "Not Provided",
+                finder: nameInput.value || "Anonymous",
+                photo: photoData,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             status.innerText = "✅ Successfully Posted!";
-            // Reset fields
-            [descInput, locInput, nameInput, contactInput, fileInput].forEach(i => i.value = "");
-        } catch (e) {
-            alert("Error: " + e.message);
-            status.innerText = "❌ Error";
-        } finally { btn.disabled = false; }
-    }
+            status.style.color = "green";
 
-    // 3. REMOVE FUNCTION
-    window.removeItem = async function(id) {
-        if (confirm("Mark this item as returned and remove it?")) {
-            try {
-                await db.collection("items").doc(id).delete();
-            } catch (e) { alert("Error deleting: " + e.message); }
+            // RESET FORM
+            [descInput, locInput, contactInput, nameInput, fileInput].forEach(i => i.value = "");
+            document.getElementById('lat').value = ""; document.getElementById('lng').value = "";
+        } catch (e) {
+            console.error(e);
+            status.innerText = "❌ Error. Check your connection.";
+            status.style.color = "red";
+        } finally {
+            btn.disabled = false;
         }
     }
 
-    // HELPER
+    // 4. DELETE FUNCTION
+    window.removeItem = async function(id) {
+        if (confirm("Mark this as found and remove it?")) {
+            await db.collection("items").doc(id).delete();
+        }
+    };
+
+    // HELPERS
     function toBase64(file) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
         });
     }
 
-    // BIND BUTTON
     document.getElementById('mainBtn').addEventListener('click', postItem);
 
-    // 4. LIVE FEED
+    // 5. LIVE FEED LISTENER
     db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap => {
         const list = document.getElementById('itemList');
-        list.innerHTML = "<h3>Live Feed</h3>";
+        list.innerHTML = "<h3>Live Campus Feed</h3>";
+        if (snap.empty) list.innerHTML += "<p>No items posted yet.</p>";
+        
         snap.forEach(doc => {
             const item = doc.data();
+            const mapUrl = (item.lat && item.lng) 
+                ? `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.locationName)}`;
+
             list.innerHTML += `
                 <div class="feed-item">
                     <strong>${item.description}</strong><br>
-                    <span class="location-tag">📍 ${item.location}</span>
-                    <div class="contact-info">Found by: ${item.finderName} | Contact: ${item.contactInfo}</div>
+                    <small>By: ${item.finder}</small>
+                    ${item.photo ? `<img src="${item.photo}" class="feed-img">` : ''}
+                    <div style="margin-top:10px;">
+                        <a href="${mapUrl}" target="_blank" class="map-link">📍 View Recovery Spot</a>
+                    </div>
+                    <div style="font-size:13px; color:#444; margin-top:10px; border-top:1px solid #eee; padding-top:8px;">
+                        <b>Location:</b> ${item.locationName}<br>
+                        <b>Contact:</b> ${item.contact}
+                    </div>
                     <button class="delete-btn" onclick="removeItem('${doc.id}')">Returned to Owner</button>
                 </div>`;
         });
     });
 </script>
+
 </body>
 </html>
