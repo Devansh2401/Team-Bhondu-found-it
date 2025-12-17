@@ -7,109 +7,86 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .container { width: 100%; max-width: 450px; }
-        .header { text-align: center; color: #4285F4; margin-bottom: 20px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input[type="file"] { margin: 15px 0; display: block; width: 100%; }
-        button { background: #4285F4; color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-size: 16px; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #ccc; }
-        #status { color: #d93025; font-size: 14px; text-align: center; margin-top: 10px; min-height: 20px; }
-        .feed-item { background: white; padding: 15px; border-radius: 10px; margin-top: 10px; border-left: 5px solid #34A853; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .item-time { font-size: 11px; color: #999; margin-top: 5px; }
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
+        button { background: #4285F4; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .feed-item { background: white; padding: 10px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #34A853; text-align: left; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="header"><h1>📍 Found-It</h1><p>AI-Powered Campus Lost & Found</p></div>
+    <h1>📍 Found-It</h1>
     <div class="card">
-        <strong>Found an item?</strong>
         <input type="file" id="imageInput" accept="image/*">
-        <button id="mainUploadBtn">Identify & Post</button>
-        <div id="status">Ready</div>
+        <button id="mainBtn">Identify & Post</button>
+        <p id="status">Ready</p>
     </div>
-    <div id="itemList"><h3>Live Campus Feed</h3></div>
-</div>
+
+    <div id="itemList" style="max-width:400px; margin: 20px auto;">
+        <h3>Live Feed</h3>
+    </div>
 
 <script>
-    // --- CONFIG ---
+    // 1. CONFIG
     const firebaseConfig = {
         apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
         authDomain: "campusfoundit.firebaseapp.com",
         projectId: "campusfoundit",
         storageBucket: "campusfoundit.firebasestorage.app",
         messagingSenderId: "151417592098",
-        appId: "1:151417592098:web:1cb43b26bdb596236e2d7b",
-        measurementId: "G-4709T85Z0G"
+        appId: "1:151417592098:web:1cb43b26bdb596236e2d7b"
     };
-    const GEMINI_API_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
+    const GEMINI_KEY = "AIzaSyCvkL7vPRn_ia3OW5uFcCmxG9ypsSMkD6w";
 
-    // --- INIT ---
+    // 2. INIT
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // --- CORE LOGIC ---
-    async function startProcess() {
-        const fileInput = document.getElementById('imageInput');
+    // 3. THE ACTION
+    async function start() {
+        alert("Button Clicked! Starting..."); // This confirms the button is connected
+        const file = document.getElementById('imageInput').files[0];
         const status = document.getElementById('status');
-        const btn = document.getElementById('mainUploadBtn');
-
-        if (!fileInput.files[0]) { alert("Please select a photo first!"); return; }
+        
+        if (!file) return alert("Select a photo!");
 
         try {
-            btn.disabled = true;
-            status.innerText = "⏳ AI is identifying...";
-
+            status.innerText = "Processing...";
             const reader = new FileReader();
-            reader.readAsDataURL(fileInput.files[0]);
+            reader.readAsDataURL(file);
             reader.onload = async () => {
                 const base64 = reader.result.split(',')[1];
                 
-                // Gemini API Call
-                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-                const response = await fetch(url, {
+                // Gemini Call
+                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+                const resp = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: "Describe this object in 5 words." }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }]
+                        contents: [{ parts: [{ text: "Describe this in 5 words." }, { inline_data: { mime_type: "image/jpeg", data: base64 } }] }]
                     })
                 });
 
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error?.message || "AI failed");
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error.message);
 
                 const desc = data.candidates[0].content.parts[0].text;
 
-                // Save to Firebase
+                // Firebase Save
                 await db.collection("items").add({
                     description: desc,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                status.innerText = "✅ Posted!";
-                fileInput.value = "";
-                btn.disabled = false;
+                status.innerText = "✅ Done!";
             };
         } catch (e) {
-            status.innerText = "❌ Error: " + e.message;
-            btn.disabled = false;
+            alert("Error: " + e.message);
+            status.innerText = "Error!";
         }
     }
 
-    // --- CONNECT BUTTON ---
-    document.getElementById('mainUploadBtn').addEventListener('click', startProcess);
+    // 4. BIND BUTTON
+    document.getElementById('mainBtn').addEventListener('click', start);
 
-    // --- FEED ---
-    db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap => {
-        const list = document.getElementById('itemList');
-        list.innerHTML = "<h3>Live Campus Feed</h3>";
-        snap.forEach(doc => {
-            const d = doc.data();
-            const time = d.createdAt ? d.createdAt.toDate().toLocaleString() : "Just now";
-            list.innerHTML += `<div class="feed-item"><strong>${d.description}</strong><div class="item-time">${time}</div></div>`;
-        });
-    });
-</script>
-</body>
-</html>
+    // 5. FEED
+    db.collection("items").orderBy("createdAt", "desc").onSnapshot(snap =>
