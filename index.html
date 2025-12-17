@@ -10,6 +10,7 @@
         body { font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
         button { background: #4285F4; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        #status { margin-top: 10px; font-weight: bold; color: #555; }
         .feed-item { background: white; padding: 10px; margin-top: 10px; border-radius: 8px; border-left: 5px solid #34A853; text-align: left; }
     </style>
 </head>
@@ -27,7 +28,7 @@
     </div>
 
 <script>
-    // 1. CONFIG (Verify these are exactly as in your console)
+    // 1. CONFIG
     const firebaseConfig = {
         apiKey: "AIzaSyCK1Dv_jFaLuXApiCXTA45D0oF6FGFB2SQ",
         authDomain: "campusfoundit.firebaseapp.com",
@@ -42,22 +43,29 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 3. THE ACTION
+    // 3. THE MAIN ACTION
     async function start() {
-        const file = document.getElementById('imageInput').files[0];
+        const fileInput = document.getElementById('imageInput');
+        const file = fileInput.files[0];
         const status = document.getElementById('status');
+        const btn = document.getElementById('mainBtn');
         
-        if (!file) return alert("Select a photo!");
+        if (!file) {
+            alert("Please select a photo first!");
+            return;
+        }
 
         try {
+            btn.disabled = true;
             status.innerText = "⏳ AI is thinking...";
+
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = async () => {
                 const base64 = reader.result.split(',')[1];
                 
-                // FIXED GEMINI URL (using gemini-1.5-flash-latest)
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`;
+                // STABLE ENDPOINT: Using v1beta and the specific model name "gemini-1.5-flash"
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
                 
                 const resp = await fetch(url, {
                     method: 'POST',
@@ -68,8 +76,9 @@
                 });
 
                 const data = await resp.json();
+                
                 if (!resp.ok) {
-                    console.error("Gemini Details:", data);
+                    console.error("Gemini Error Detail:", data);
                     throw new Error(data.error?.message || "AI Request Failed");
                 }
 
@@ -81,16 +90,19 @@
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                status.innerText = "✅ Posted to feed!";
+                status.innerText = "✅ Posted successfully!";
+                fileInput.value = ""; 
+                btn.disabled = false;
             };
         } catch (e) {
-            console.error("App Error:", e);
+            console.error("Application Error:", e);
             alert("Error: " + e.message);
-            status.innerText = "Error!";
+            status.innerText = "❌ Error!";
+            btn.disabled = false;
         }
     }
 
-    // 4. BIND BUTTON (This ensures the button works every time)
+    // 4. BIND BUTTON
     document.getElementById('mainBtn').addEventListener('click', start);
 
     // 5. LIVE FEED
